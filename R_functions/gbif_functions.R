@@ -18,6 +18,24 @@ occCheckFunc <- function(x){
 }
 
 
+occCheckFamily <- function(x){
+  require(rgbif); require(tidyr)
+  # Function to find GBIF taxon key for given species and get the number of records
+  taxKey <- name_lookup(query = x, rank = "family", return = "data")$key
+  # Multiple keys are returned for each query; need to find the keys with non-zero counts
+  # Look for number of records (count) for each key and combine only those that are non-zero
+  taxCount <- lapply(taxKey, function(x) occ_count(taxonKey = x, country = "US")) %>% unlist()
+  # Counts and Keys that are non-zero
+  goodTaxCount <- taxCount[which(taxCount > 0)]
+  goodTaxKey <- taxKey[which(taxCount > 0)]
+  taxCheck <- list(key = goodTaxKey,
+                   count = goodTaxCount,
+                   sum = sum(goodTaxCount))
+  return(taxCheck)
+}
+
+
+
 #### Download occurrences of each species (or taxon key) in a list
 # Takes taxon key and count of records for that key as inputs;
 # uses records count to set the limit

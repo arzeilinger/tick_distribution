@@ -1,15 +1,18 @@
 #### MUSEUM OCCURRENCES OF TICK VECTORS
 #### Occurrences checked in GBIF and Essig Museum databases
 
-my.packages <- c("rgbif", "data.table", "dplyr", "tidyr", "maps", "ecoengine")
+my.packages <- c("rgbif", "data.table", "dplyr", "tidyr", "maps", "ecoengine", "ggplot2")
 lapply(my.packages, require, character.only = TRUE)
 # Load functions for compiling GBIF records
-source("R_functions/gbif_functions")
+source("R_functions/gbif_functions.R")
 
 
 ##############################################################
 #### Get GBIF records
 ##############################################################
+
+# Look at all records for Ixodidae
+ixodidaeCheck <- occCheckFamily("Ixodidae")
 
 # Load vector of tick names
 ticks <- c("Ixodes pacificus", "Ixodes scapularis", "Amblyomma americanum")
@@ -24,12 +27,17 @@ tickCounts <- lapply(1:length(tickCheck), function(x) tickCheck[[x]]$count) %>% 
 
 # Create list with each element as a table of records for each taxon key
 tickList <- lapply(1:length(tickKeys), function(x) occFunc(tickKeys[x], tickCounts[x]))
+# check the raw number of records from GBIF
+lapply(tickList, nrow)
 # Combine into one data set
 tickData <- tickList %>% rbindlist(., fill = TRUE) %>% as.data.frame()
 
 ### Filtering data set
 # GBIF returned two additional species; filter data set to just original three names
 tickData <- tickData %>% dplyr::filter(., name == ticks[1] | name == ticks[2] | name == ticks[3])
+tickData$name <- gsub(" ", ".", tickData$name)
+
+saveRDS(tickData, file = "output/GBIF_tick_records.rds")
 
 # Missing values
 summary(tickData)
@@ -38,15 +46,31 @@ summary(tickData)
 # select only records that are geo-referenced
 tickGeo <- tickData %>% dplyr::filter(., !is.na(decimalLongitude))
 
-# add names to the list, with periods instead of spaces
-tickNames <- c("Ixodes.pacificus", "Ixodes.scapularis", "Amblyomma.americanum")
-names(tickGeo) <- tickNames
-
-# check the raw number of records from GBIF
-lapply(tickList, nrow)
-
+#### Plotting
 # map the tick occurrences on the US map
-pdf("US_map_tick_gbif_records_2017-05-19.pdf")
+tickMap <- ggplot(tickData, aes(x = decimalLongitude, y = decimalLatitude)) +
+  borders("state") +
+  geom_point(aes(colour = name), pch = 1, size = 2) +
+  scale_x_continuous(name = "Longitude") +
+  scale_y_continuous(name = "Latitude") +
+  # ggsn::north(location = "bottomleft", symbol = 10, 
+  #             x.min = min(tickData$decimalLatitude), x.max = max(tickData$decimalLongitude),
+  #             y.min = min(tickData$decimalLatitude), y.max = max(tickData$decimalLatitude)) +
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size = 10),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+
+tickMap
+ggsave(filename = "results/US_map_GBIF_records.pdf",
+       plot = tickMap)
+# Map doesn't look very good right now, need to work on it
+
+# Here's another map
+pdf("results/US_map_tick_gbif_records_2017-05-19.pdf")
   map("state")
   title("I. pacificus = green, I. scapularis = red, A. americanum = blue")
   points(x = tickYr$Ixodes.pacificus$decimalLongitude,
@@ -60,8 +84,8 @@ pdf("US_map_tick_gbif_records_2017-05-19.pdf")
          col = "blue")
 dev.off()
 
-# Save list object
-save(tickYr, file = "Tick_records_GBIF_2017-05-19.Rdata")
+
+
 
 
 #########################################################
